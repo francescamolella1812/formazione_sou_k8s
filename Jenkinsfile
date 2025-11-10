@@ -32,7 +32,8 @@ pipeline {
             steps {
                 script {
                     // Nome del branch corrente
-                    def branch = env.GIT_BRANCH ?: sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
+                    def rawBranch = env.GIT_BRANCH ?: sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
+                    def branch = rawBranch.replaceFirst(/^origin\\//, "")
 
                     // Verifica se il commit è esattamente su un tag git
                     def tag = sh(script: "git describe --tags --exact-match 2>/dev/null || true", returnStdout: true).trim()
@@ -95,6 +96,28 @@ pipeline {
                   docker run -d --name flask-app -p 5000:8000 ${IMAGE_NAME}:${IMAGE_TAG}
                 """
             }
+
+        stage('Deploy to Kubernetes with Helm') {
+  	  steps {
+            withCredentials([file(credentialsId: 'kubeconfig-kind-dev', variable: 'KUBECONFIG_FILE')]) {
+              sh """
+        	echo ">>> Using kubeconfig from Jenkins credentials"
+        	export KUBECONFIG=$KUBECONFIG_FILE
+
+        	# Ensure namespace exists
+        	kubectl create namespace formazione-sou --dry-run=client -o yaml | kubectl apply -f -
+
+        	# Deploy with Helm
+        	helm upgrade --install flask-release charts/flask-example \
+          	-n formazione-sou \
+          	--set image.repository=docker.io/francesca1812/myimage \
+          	--set image.tag=${IMAGE_TAG}
+
+        	echo "✅ Deploy completed on Kubernetes namespace formazione-sou"
+              """
+          }
+
+
         }
     }
 
