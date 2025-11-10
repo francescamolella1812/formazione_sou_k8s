@@ -1,23 +1,20 @@
 pipeline {
-
-    // Nodo su cui gira la pipeline (la VM)
-    agent { label 'manual agent' }
+    agent { label 'manual' }
 
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
-        IMAGE_NAME = "francesca1812/myimage"
+        DOCKER_IMAGE = "francesca1812/myimage"
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout SCM') {
             steps {
                 checkout([
                     $class: 'GitSCM',
                     branches: [[name: '*/main']],
                     userRemoteConfigs: [[
-                        url: 'https://github.com/francescamolella1812/formazione_sou_k8s',
-                        credentialsId: 'github-credentials'
+                        url: 'https://github.com/francescamolella1812/formazione_sou_k8s.git',
+                        credentialsId: 'jenkins-ssh-key'
                     ]]
                 ])
             }
@@ -26,48 +23,43 @@ pipeline {
         stage('Determine Tag') {
             steps {
                 script {
-                    def rawBranch = env.GIT_BRANCH ?: sh(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true).trim()
-                    def branch = rawBranch.replaceFirst(/^origin\//, "")
-                    def tag = sh(script: "git describe --tags --exact-match 2>/dev/null || true", returnStdout: true).trim()
-                    def commit = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-
-                    if (tag) {
-                        env.IMAGE_TAG = tag
-                    } else if (branch == "main" || branch == "master") {
-                        env.IMAGE_TAG = "latest"
-                    } else if (branch == "develop") {
-                        env.IMAGE_TAG = "develop-${commit}"
-                    } else {
-                        env.IMAGE_TAG = "${branch}-${commit}"
-                    }
-
-                    echo "Docker image tag will be: ${env.IMAGE_TAG}"
+                    IMAGE_TAG = sh(returnStdout: true, script: "git rev-parse --short HEAD").trim()
+                    echo "Docker image tag will be: ${IMAGE_TAG}"
                 }
             }
         }
 
         stage('Build Docker image') {
             steps {
-                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                sh """
+                docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} .
+                docker tag ${DOCKER_IMAGE}:${IMAGE_TAG} ${DOCKER_IMAGE}:latest
+                """
             }
         }
 
         stage('Push to DockerHub') {
             steps {
-                sh """
-                  echo "${DOCKERHUB_CREDENTIALS_PSW}" | docker login -u "${DOCKERHUB_CREDENTIALS_USR}" --password-stdin
-                  docker push ${IMAGE_NAME}:${IMAGE_TAG}
-                """
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', 
+                    usernameVariable: 'DOCKERHUB_USER', 
+                    passwordVariable: 'DOCKERHUB_PASS')]) {
+
+                    sh """
+                    echo $DOCKERHUB_PASS | docker login -u $DOCKERHUB_USER --password-stdin
+                    docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
+                    docker push ${DOCKER_IMAGE}:latest
+                    """
+                }
             }
         }
 
         stage('Deploy on manual agent') {
             steps {
                 sh """
-                  docker pull ${IMAGE_NAME}:${IMAGE_TAG}
-                  docker stop flask-app || true
-                  docker rm flask-app || true
-                  docker run -d --name flask-app -p 5000:8000 ${IMAGE_NAME}:${IMAGE_TAG}
+                docker pull ${DOCKER_IMAGE}:latest
+                docker stop flask-app || true
+                docker rm flask-app || true
+                docker run -d --name flask-app -p 5000:8000 ${DOCKER_IMAGE}:latest
                 """
             }
         }
@@ -75,33 +67,30 @@ pipeline {
         stage('Deploy to Kubernetes with Helm') {
             steps {
                 withCredentials([file(credentialsId: 'kubeconfig-kind-dev', variable: 'KUBECONFIG_FILE')]) {
+
                     sh """
-                        echo ">>> Using kubeconfig from Jenkins credentials"
-                        export KUBECONFIG=$KUBECONFIG_FILE
+                    echo ">>> Using kubeconfig"
+                    
+                    # Test cluster access
+                    kubectl --kubeconfig=$KUBECONFIG_FILE --insecure-skip-tls-verify=true get nodes
 
-                        kubectl create namespace formazione-sou --dry-run=client -o yaml | kubectl apply -f -
+                    # Ensure namespace exists
+                    kubectl --kubeconfig=$KUBECONFIG_FILE --insecure-skip-tls-verify=true \
+                        create namespace formazione-sou --dry-run=client -o yaml | \
+                    kubectl --kubeconfig=$KUBECONFIG_FILE --insecure-skip-tls-verify=true apply -f -
 
-                        helm upgrade --install flask-release charts/flask-example \
-                            -n formazione-sou \
-                            --set image.repository=docker.io/${IMAGE_NAME} \
-                            --set image.tag=${IMAGE_TAG}
-
-                        echo "Deploy completed on Kubernetes namespace formazione-sou"
+                    # Apply manifest (simple deploy)
+                    kubectl --kubeconfig=$KUBECONFIG_FILE --insecure-skip-tls-verify=true apply -f kubernetes/deploy.yaml
                     """
                 }
             }
         }
-
-    } // fine stages
+    }
 
     post {
-        success {
-            echo "Application successfully deployed!"
-        }
         failure {
             echo "Build or deploy failed. Check logs."
         }
     }
-
-} // fine pipeline
+}
 
