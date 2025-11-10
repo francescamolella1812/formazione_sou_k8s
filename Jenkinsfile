@@ -64,27 +64,21 @@ pipeline {
             }
         }
 
+
         stage('Deploy to Kubernetes with Helm') {
-            steps {
-                withCredentials([file(credentialsId: 'kubeconfig-kind-dev', variable: 'KUBECONFIG_FILE')]) {
-
-                    sh """
-                    echo ">>> Using kubeconfig"
-                    
-                    # Test cluster access
-                    kubectl --kubeconfig=$KUBECONFIG_FILE --insecure-skip-tls-verify=true get nodes
-
-                    # Ensure namespace exists
-                    kubectl --kubeconfig=$KUBECONFIG_FILE --insecure-skip-tls-verify=true \
-                        create namespace formazione-sou --dry-run=client -o yaml | \
-                    kubectl --kubeconfig=$KUBECONFIG_FILE --insecure-skip-tls-verify=true apply -f -
-
-                    # Apply manifest (simple deploy)
-                    kubectl --kubeconfig=$KUBECONFIG_FILE --insecure-skip-tls-verify=true apply -f kubernetes/deploy.yaml
-                    """
-                }
-            }
+            withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_FILE')]) {
+                sh """
+                echo '>>> Using kubeconfig'
+                /usr/local/bin/kubectl --kubeconfig=${KUBECONFIG_FILE} --insecure-skip-tls-verify=true create namespace formazione-sou --dry-run=client -o yaml | /usr/local/bin/kubectl --kubeconfig=${KUBECONFIG_FILE} apply -f -
+        
+                helm upgrade --install flask-app helm-chart \
+                    --namespace formazione-sou \
+                    --set image.repository=francesca1812/myimage \
+                    --set image.tag=${IMAGE_TAG}
+                """
         }
+
+
     }
 
     post {
