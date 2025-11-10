@@ -71,7 +71,7 @@ pipeline {
                     echo '>>> Using kubeconfig at $KUBECONFIG_FILE'
                     export KUBECONFIG="$KUBECONFIG_FILE"
 		    /usr/local/bin/kubectl create namespace formazione-sou --dry-run=client -o yaml | /usr/local/bin/kubectl apply --validate=false --insecure-skip-tls-verify -f -
-		    helm upgrade --install flask-app helm-chart \
+		    helm upgrade --install flask-app charts/flask-example \
                       --namespace formazione-sou \
   		      --set image.repository=${DOCKER_IMAGE} \
   		      --set image.tag=${IMAGE_TAG} \
