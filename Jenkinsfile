@@ -66,12 +66,11 @@ pipeline {
 
         stage('Deploy to Kubernetes with Helm') {
             steps {
-                withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_FILE')]) {
+                withCredentials([file(credentialsId: 'kubeconfig-kind-dev', variable: 'KUBECONFIG_FILE')]) {
                     sh """
-                    echo '>>> Using kubeconfig'
-                    /usr/local/bin/kubectl --kubeconfig=${KUBECONFIG_FILE} --insecure-skip-tls-verify=true create namespace formazione-sou --dry-run=client -o yaml | 
-/usr/local/bin/kubectl --kubeconfig=${KUBECONFIG_FILE} apply -f -
-            
+                    echo '>>> Using kubeconfig at $KUBECONFIG_FILE'
+                    export KUBECONFIG="$KUBECONFIG_FILE"
+                    /usr/local/bin/kubectl create namespace formazione-sou --dry-run=client -o yaml | /usr/local/bin/kubectl apply -f -            
                     helm upgrade --install flask-app helm-chart \
                         --namespace formazione-sou \
                         --set image.repository=${DOCKER_IMAGE} \
