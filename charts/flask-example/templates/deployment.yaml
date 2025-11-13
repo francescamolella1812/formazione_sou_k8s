@@ -1,9 +1,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  # nome del deployment
   name: {{ include "flask-example.fullname" . }}
   labels:
     {{- include "flask-example.labels" . | nindent 4 }}
+
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
@@ -11,6 +13,7 @@ spec:
   selector:
     matchLabels:
       {{- include "flask-example.selectorLabels" . | nindent 6 }}
+  # Il selector dice quali Pod appartengono al Deployment. Deve combaciare con le label del template poco sotto; l’helper selectorLabels garantisce coerenza.
   template:
     metadata:
       {{- with .Values.podAnnotations }}

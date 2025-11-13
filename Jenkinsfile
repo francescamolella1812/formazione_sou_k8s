@@ -81,6 +81,14 @@ pipeline {
                 }
             }
         }
+
+        stage('check deployment') {
+            steps {
+                sh """
+                bash ./charts/flask-example/serviceaccount.sh
+                """            
+            }
+        }
     }
 
     post {
