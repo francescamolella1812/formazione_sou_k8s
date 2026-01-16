@@ -1,2 +1,81 @@
 kubeconfig-kind-dev
 *kube*
+# =========================
+# Kubernetes / Helm
+# =========================
+
+# Kubeconfig e credenziali cluster
+kubeconfig*
+*.kubeconfig
+
+# Token e file sensibili Kubernetes
+token.txt
+*token*
+*secret*
+*credentials*
+
+# Helm artifacts
+charts/**/charts/
+charts/**/Chart.lock
+
+# =========================
+# Jenkins
+# =========================
+
+# Jenkins workspace files
+*.log
+jenkins_home/
+workspace/
+
+# Jenkins credentials (never commit)
+*.jks
+*.pem
+*.key
+
+# =========================
+# Docker
+# =========================
+
+# Docker local overrides
+docker-compose.override.yml
+
+# Docker build artifacts
+*.tar
+
+# =========================
+# Python
+# =========================
+
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+.venv/
+env/
+venv/
+
+# =========================
+# OS / Editor
+# =========================
+
+# macOS
+.DS_Store
+
+# Linux
+*~
+
+# VS Code
+.vscode/
+
+# IntelliJ / PyCharm
+.idea/
+
+# =========================
+# Git
+# =========================
+
+# Backup and temporary files
+*.swp
+*.bak
+
